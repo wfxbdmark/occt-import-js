@@ -26,28 +26,37 @@ jobs:
         with:
           submodules: false
 
-      - name: Clone OCCT from GitHub mirror (官方 git 证书损坏，改用镜像 + 严格校验)
+      - name: Clone OCCT from GitHub mirror (完整克隆 + 精确 pin commit + 硬校验)
         run: |
           set -euo pipefail
-          # 取 occt-import-js 固定的 OCCT 子模块 commit
+          # 取 occt-import-js 固定的 OCCT 子模块 commit（这是布局匹配的关键）
           OCCT_SHA=$(git ls-tree HEAD occt | awk '{print $3}')
           echo "occt-import-js 固定的 OCCT commit = ${OCCT_SHA:-<none>}"
-          rm -rf occt
-          git clone --filter=blob:none https://github.com/Open-Cascade-SAS/OCCT.git occt
-          pushd occt
-          if [ -n "${OCCT_SHA:-}" ] && git cat-file -e "${OCCT_SHA}^{commit}" 2>/dev/null; then
-            echo "checkout 固定 commit"
-            git checkout --quiet "$OCCT_SHA"
-          else
-            echo "镜像缺少该 commit，回退到兼容 tag V7_8_1"
-            git checkout --quiet V7_8_1
+          if [ -z "${OCCT_SHA:-}" ]; then
+            echo "::error::取不到 OCCT 子模块 commit"; exit 1
           fi
+          rm -rf occt
+          # 完整克隆（不要 --filter，否则 cat-file 检测不到 commit）
+          git clone https://github.com/Open-Cascade-SAS/OCCT.git occt
+          pushd occt
+          echo "=== checkout 精确 commit（失败则硬退出，绝不回退到错误版本）==="
+          git checkout --quiet "$OCCT_SHA"
+          echo "OCCT 实际版本: $(git describe --tags --always)"
           popd
-          echo "=== 校验 OCCT 源码是否真的就位 ==="
+
+          echo "=== 诊断：OCCT 源码布局 ==="
           test -d occt/src
-          N=$(ls occt/src | wc -l)
-          echo "occt/src 子目录数: $N"
-          test "$N" -gt 50
+          echo "occt/src 一级目录数: $(ls occt/src | wc -l)"
+          echo "occt/src 前 10 个目录:"; ls occt/src | head -10
+          CXX_COUNT=$(find occt/src -name '*.cxx' | wc -l | tr -d ' ')
+          echo ".cxx 源文件总数: $CXX_COUNT"
+          echo "STEPControl 模块是否经典布局（.cxx 直接在模块目录下）:"
+          ls occt/src/STEPControl/*.cxx 2>/dev/null | head -3 || echo "  !! 未找到 occt/src/STEPControl/*.cxx —— 布局可能已变"
+          # 硬闸门：源文件数必须上万，否则布局不对，直接失败
+          if [ "$CXX_COUNT" -lt 5000 ]; then
+            echo "::error::OCCT .cxx 源文件仅 $CXX_COUNT 个（应上万），布局与 CMakeLists 的 glob 不匹配"
+            exit 1
+          fi
 
       - name: Setup Emscripten (latest，最终版 memory64 规范，匹配 Chrome 133+)
         uses: mymindstorm/setup-emsdk@v14
