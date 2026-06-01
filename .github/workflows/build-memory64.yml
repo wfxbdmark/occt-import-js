@@ -16,10 +16,18 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout (含 OCCT 子模块)
+      - name: Checkout occt-import-js (不拉子模块)
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: false
+
+      - name: Clone OCCT from GitHub mirror (官方 git 服务器证书损坏，改用镜像)
+        run: |
+          git config -f .gitmodules submodule.occt.url https://github.com/Open-Cascade-SAS/OCCT.git
+          git submodule sync
+          git submodule update --init --recursive
+          echo "=== OCCT 子模块已就位 ==="
+          ls occt | head
 
       - name: Setup Emscripten (latest，含最终版 memory64 规范，匹配 Chrome 133+)
         uses: mymindstorm/setup-emsdk@v14
