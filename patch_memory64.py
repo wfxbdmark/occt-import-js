@@ -7,6 +7,7 @@
 0. 【关键】显式定义 EMSCRIPTEN 宏。js-interface.cpp 整个文件被 `#ifdef EMSCRIPTEN`
    包着，而新版 Emscripten 已移除这个旧版预定义宏（只剩 __EMSCRIPTEN__），
    导致 ReadStepFile/EMSCRIPTEN_BINDINGS 被预处理器跳过 -> 空壳 wasm。
+0b. C++11 -> C++17。新版 embind 头文件要求 C++17（decay_t / is_pointer_v 等）。
 1. 移除已废弃的 --no-heap-copy（新版 Emscripten 已删除该旗标）
 2. 把已废弃的 --bind 换成 -lembind（新版 Emscripten 推荐写法）
 3. 加入 -sMEMORY64=1（编译 + 链接，开启 64 位寻址）
@@ -22,6 +23,14 @@ with open(CMAKE, "r", encoding="utf-8") as f:
     src = f.read()
 
 original = src
+
+# 0b) C++11 -> C++17（新版 Emscripten 的 embind 头文件要求 C++17：decay_t / is_pointer_v 等）
+if "set (CMAKE_CXX_STANDARD 11)" in src:
+    src = src.replace("set (CMAKE_CXX_STANDARD 11)", "set (CMAKE_CXX_STANDARD 17)")
+elif "set(CMAKE_CXX_STANDARD 11)" in src:
+    src = src.replace("set(CMAKE_CXX_STANDARD 11)", "set(CMAKE_CXX_STANDARD 17)")
+else:
+    print("WARN: 未找到 CMAKE_CXX_STANDARD 11，可能已是其它标准", file=sys.stderr)
 
 # 1) 移除 --no-heap-copy
 src = src.replace(
@@ -63,6 +72,7 @@ with open(CMAKE, "w", encoding="utf-8") as f:
 
 print("memory64 补丁已应用：")
 print(" - 【关键】定义 EMSCRIPTEN 宏（修复 #ifdef EMSCRIPTEN 导致绑定被跳过）")
+print(" - C++11 -> C++17（修复 embind requires -std=c++17 or newer）")
 print(" - 移除 --no-heap-copy")
 print(" - --bind -> -lembind")
 print(" - 新增 -sMEMORY64=1 (compile + link)")
