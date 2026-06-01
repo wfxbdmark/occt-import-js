@@ -1,0 +1,50 @@
+name: Build OCCT memory64 WASM
+
+# 用法：
+# 1. fork https://github.com/kovacsv/occt-import-js 到你的 GitHub 账号
+# 2. 把本文件放到 fork 仓库的 .github/workflows/build-memory64.yml
+# 3. 在 GitHub 仓库页 Actions 标签手动触发（workflow_dispatch），或推送到 memory64 分支
+# 4. 跑完后在 Actions run 页面底部 Artifacts 下载 occt-import-js-memory64.zip
+# 5. 解压得到 occt-import-js.js 和 occt-import-js.wasm，交给开发替换
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [memory64]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (含 OCCT 子模块)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Emscripten (latest，含最终版 memory64 规范，匹配 Chrome 133+)
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: latest
+
+      - name: Patch CMakeLists for memory64
+        run: python3 patch_memory64.py
+
+      - name: Configure (emcmake)
+        run: emcmake cmake -B build -DCMAKE_BUILD_TYPE=Release .
+
+      - name: Build (全套 OCCT，约 20-40 分钟)
+        run: cmake --build build --config Release -j4
+
+      - name: Locate outputs
+        run: |
+          echo "=== 查找产物 ==="
+          find build -name "occt-import-js.wasm" -o -name "occt-import-js.js" | head
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: occt-import-js-memory64
+          path: |
+            build/Release/occt-import-js.js
+            build/Release/occt-import-js.wasm
+          if-no-files-found: error
