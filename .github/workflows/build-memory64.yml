@@ -83,6 +83,9 @@ jobs:
           test -f "$JS"
           SZ=$(stat -c%s "$WASM")
           echo "wasm 体积 = $SZ bytes"
+          echo "=== 诊断：wasm 中 embind 导出名是否存在 ==="
+          echo "ReadStepFile 出现次数: $(strings "$WASM" | grep -c ReadStepFile || true)"
+          echo "ReadBrepFile 出现次数: $(strings "$WASM" | grep -c ReadBrepFile || true)"
           if [ "$SZ" -lt 3000000 ]; then
             echo "::error::wasm 仅 $SZ 字节（<3MB），OCCT 未被编入，构建无效！"
             exit 1
